@@ -49,4 +49,24 @@ WORLDS = {
         "fix": "no_fix",
         "probe_hint": "Synthetic checks stay green across every region.",
     },
+    "security_breach": {
+        "logs": [
+            "unusual login from blocked IP range",
+            "data export volume spike detected",
+            "anomaly in user session patterns",
+        ],
+        "metrics": {"cpu": 55, "latency": 200, "error_rate": 0.08},
+        "fix": "block_ip",
+        "probe_hint": "Security logs show unauthorized access patterns.",
+    },
+    "resource_exhaustion": {
+        "logs": [
+            "OOM killer triggered on app servers",
+            "memory pressure alerts across cluster",
+            "auto-scaling limits reached",
+        ],
+        "metrics": {"cpu": 95, "latency": 350, "error_rate": 0.20},
+        "fix": "scale_up",
+        "probe_hint": "Resource usage correlates with traffic but exceeds capacity.",
+    },
 }

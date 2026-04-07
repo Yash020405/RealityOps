@@ -12,3 +12,4 @@ tasks:
   - ambiguous_root
   - revenue_tradeoff
   - cascading_failure
+  - multi_incident

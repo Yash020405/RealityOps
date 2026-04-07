@@ -6,6 +6,9 @@ TaskName = Literal[
     "ambiguous_root",
     "revenue_tradeoff",
     "cascading_failure",
+    "multi_incident",
+    "security_breach",
+    "resource_exhaustion",
 ]
 
 class Observation(BaseModel):
@@ -15,6 +18,9 @@ class Observation(BaseModel):
     slack: List[str]
     revenue_loss: float
     step: int
+    confidence_levels: Dict[str, float] = Field(default_factory=dict)
+    hints: List[str] = Field(default_factory=list)
+    market_hours: bool = Field(default=False)
 
 class Action(BaseModel):
     type: Literal[
@@ -25,6 +31,7 @@ class Action(BaseModel):
         "commit_fix",
         "safe_mitigation",
         "risky_hotfix",
+        "ask_team",
         "wait"
     ]
     payload: Optional[Dict] = None
