@@ -16,6 +16,7 @@ tags:
 - GitHub: https://github.com/Yash020405/RealityOps
 - Hugging Face Space (page): https://huggingface.co/spaces/thetallinnov8r/realityops
 - Hugging Face runtime URL: https://thetallinnov8r-realityops.hf.space
+- Streamlit UI (local): http://localhost:8501
 
 
 ## Why this is a real-world task
