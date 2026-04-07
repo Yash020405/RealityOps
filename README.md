@@ -16,7 +16,7 @@ tags:
 - GitHub: https://github.com/Yash020405/RealityOps
 - Hugging Face Space (page): https://huggingface.co/spaces/thetallinnov8r/realityops
 - Hugging Face runtime URL: https://thetallinnov8r-realityops.hf.space
-- Streamlit UI (local): http://localhost:8501
+- Built-in web UI routes: `https://thetallinnov8r-realityops.hf.space/` and `https://thetallinnov8r-realityops.hf.space/web`
 
 
 ## Local Development
@@ -25,10 +25,12 @@ To run the project locally:
 
 1. Install dependencies: `pip install -r requirements.txt`
 2. Start the API server: `uvicorn server.app:app --host 0.0.0.0 --port 7860`
-3. Start the Streamlit UI: `streamlit run server/ui.py`
-4. Access the UI at `http://localhost:8501`
+3. Open the built-in UI at `http://localhost:7860/` or `http://localhost:7860/web`
 
-The UI connects to the server at `http://localhost:7860` by default.
+Optional local Streamlit sandbox (separate process):
+- Run `streamlit run server/ui.py`
+- Access it at `http://localhost:8501`
+- It connects to the API server at `http://localhost:7860` by default.
 
 The environment models work that real SRE and platform engineers do:
 - triaging active incidents
@@ -146,7 +148,7 @@ RealityOps ships with seven tasks (exceeding minimum requirement):
 - **Dynamic Observations**: Evolving logs, metrics, and slack messages
 - **Market Hours Impact**: Revenue loss halved during off-peak hours
 - **Rich Belief Tracking**: Confidence levels and belief history
-- **Interactive Web UI**: Streamlit demo at `/ui` for visualization and control
+- **Interactive Web UI**: Built-in FastAPI UI at `/` and `/web` for episode control and response inspection
 - **Comprehensive Benchmarking**: Automated scoring suite for all tasks
 
 Each task has a deterministic grader with score in [0.0, 1.0].
