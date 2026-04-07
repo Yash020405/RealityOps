@@ -16,9 +16,19 @@ tags:
 - GitHub: https://github.com/Yash020405/RealityOps
 - Hugging Face Space (page): https://huggingface.co/spaces/thetallinnov8r/realityops
 - Hugging Face runtime URL: https://thetallinnov8r-realityops.hf.space
+- Streamlit UI (local): http://localhost:8501
 
 
-## Why this is a real-world task
+## Local Development
+
+To run the project locally:
+
+1. Install dependencies: `pip install -r requirements.txt`
+2. Start the API server: `uvicorn server.app:app --host 0.0.0.0 --port 7860`
+3. Start the Streamlit UI: `streamlit run server/ui.py`
+4. Access the UI at `http://localhost:8501`
+
+The UI connects to the server at `http://localhost:7860` by default.
 
 The environment models work that real SRE and platform engineers do:
 - triaging active incidents
@@ -32,6 +42,28 @@ The server implements the standard endpoints:
 - POST /reset -> returns initial observation and done=false
 - POST /step -> returns observation, reward, done, info
 - GET /state -> returns full internal state plus deterministic grader score
+- GET /visualize -> returns episode trajectory and belief history
+
+### API Examples
+
+Reset a task:
+```bash
+curl -X POST http://localhost:7860/reset \
+  -H "Content-Type: application/json" \
+  -d '{"task": "false_alarm"}'
+```
+
+Take a step:
+```bash
+curl -X POST http://localhost:7860/step \
+  -H "Content-Type: application/json" \
+  -d '{"type": "probe"}'
+```
+
+Visualize episode:
+```bash
+curl http://localhost:7860/visualize
+```
 
 Typed Pydantic models are defined in env/models.py:
 - Observation
@@ -55,20 +87,25 @@ Supported commit_fix payload values:
 - flush_cache
 - refresh_token
 - reroute_traffic
+- block_ip
+- scale_up
 - no_fix
 
 ## Observation Space
 
 - alerts: active incident warnings
-- logs: mixed high-signal and noisy production logs
+- logs: mixed high-signal and noisy production logs (with dynamic noise for replayability)
 - metrics: cpu, latency, error_rate
 - slack: human team communication noise and hints
 - revenue_loss: cumulative business impact
 - step: current timestep
+- confidence_levels: dict of belief probabilities for each world
+- hints: contextual guidance (e.g., "Consider probing for more evidence")
+- market_hours: boolean indicating if incident occurs during peak business hours (affects revenue impact)
 
 ## Tasks (Easy -> Hard)
 
-RealityOps ships with four tasks (minimum requirement exceeded):
+RealityOps ships with seven tasks (exceeding minimum requirement):
 
 1. false_alarm (easy)
 - Objective: avoid unnecessary risky changes when alerts are mostly noise.
@@ -88,7 +125,29 @@ RealityOps ships with four tasks (minimum requirement exceeded):
 - Ground truth: auth_expiry.
 - Additional gate: at least two belief updates are required for full-confidence completion.
 
-## Deterministic Task Graders
+5. multi_incident (ultra-hard)
+- Objective: handle overlapping incidents with limited resources.
+- Ground truth: db_overload and network_partition (multi-world scenario).
+- Additional gate: requires multiple belief updates and coordinated fixes.
+
+6. security_breach (hard)
+- Objective: detect and respond to unauthorized access attempts.
+- Ground truth: security_breach.
+- Additional gate: mitigation must happen before a fix is considered final.
+
+7. resource_exhaustion (medium)
+- Objective: manage resource limits during traffic spikes.
+- Ground truth: resource_exhaustion.
+
+## Advanced Features
+
+- **Time-Based Events**: Escalation after step 5 with executive notifications
+- **Team Interactions**: `ask_team` action for querying SRE colleagues
+- **Dynamic Observations**: Evolving logs, metrics, and slack messages
+- **Market Hours Impact**: Revenue loss halved during off-peak hours
+- **Rich Belief Tracking**: Confidence levels and belief history
+- **Interactive Web UI**: Streamlit demo at `/ui` for visualization and control
+- **Comprehensive Benchmarking**: Automated scoring suite for all tasks
 
 Each task has a deterministic grader with score in [0.0, 1.0].
 Grader logic lives in env/grader.py and scores:

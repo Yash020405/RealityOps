@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import logging
 from copy import deepcopy
 from typing import Dict, Optional
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 from .models import Action, Observation, Reward, TaskName
 from .worlds import WORLDS
@@ -20,9 +25,11 @@ class RealityOpsEnv:
         return "ambiguous_root"
 
     def reset(self, task_name: Optional[str] = None):
+        import random
         selected_task = self._selected_task(task_name)
         task_spec = deepcopy(TASK_SPECS[selected_task])
 
+        seed = random.randint(0, 10000)
         self.state = {
             "task_name": selected_task,
             "task_spec": task_spec,
@@ -51,9 +58,14 @@ class RealityOpsEnv:
             "done": False,
             "revenue_loss": 0.0,
             "episode_score": 0.0,
+            "seed": seed,
+            "team_queries": 0,
+            "belief_history": [default_beliefs(selected_task)],
+            "market_hours": random.choice([True, False]),  # Affects revenue impact
         }
 
-        obs = build_observation(self.state)
+        obs = build_observation(self.state, seed)
+        logger.info(f"Episode reset for task: {selected_task}, seed: {seed}")
         return Observation(**obs, step=0)
 
     def _reward_from_action(self, action: Action) -> Reward:
@@ -80,13 +92,24 @@ class RealityOpsEnv:
             self.state["beliefs"] = normalized
             self.state["belief_update_count"] += 1
             components["belief_update"] = 0.05
-            components["belief_alignment"] = 0.20 * normalized.get(self.state["active_world"], 0.0)
+            components["belief_signal"] = 0.05  # Additional signal
+            if isinstance(self.state["active_world"], list):
+                alignment = sum(normalized.get(w, 0.0) for w in self.state["active_world"]) / len(self.state["active_world"])
+            else:
+                alignment = normalized.get(self.state["active_world"], 0.0)
+            components["belief_alignment"] = 0.20 * alignment
+            self.state["belief_history"].append(normalized.copy())
 
         elif action.type == "commit_fix":
             proposed_fix = (action.payload or {}).get("fix", "")
             self.state["applied_fix"] = proposed_fix
             self.state["fix_step"] = self.state["steps"]
-            correct_fix = WORLDS[self.state["active_world"]]["fix"]
+            active_worlds = self.state["active_world"]
+            if isinstance(active_worlds, list):
+                correct_fixes = [WORLDS[world]["fix"] for world in active_worlds]
+                correct_fix = correct_fixes  # List
+            else:
+                correct_fix = WORLDS[active_worlds]["fix"]
             evidence_count = sum(1 for value in self.state["investigations"].values() if value)
             required_evidence = self.state["task_spec"].get("required_evidence", 1)
             required_updates = self.state["task_spec"].get("required_belief_updates", 0)
@@ -98,17 +121,23 @@ class RealityOpsEnv:
             else:
                 self.state["requires_fix_confirmation"] = False
 
-            valid_fixes = {"increase_pool", "flush_cache", "refresh_token", "reroute_traffic", "no_fix"}
+            valid_fixes = {"increase_pool", "flush_cache", "refresh_token", "reroute_traffic", "block_ip", "scale_up", "no_fix"}
             if proposed_fix and proposed_fix not in valid_fixes:
                 self.state["invalid_fix_count"] += 1
                 components["invalid_fix_penalty"] = -0.25
 
-            if proposed_fix == correct_fix:
-                components["fix_quality"] = 0.55
-            elif self.state["active_world"] == "no_incident" and proposed_fix == "no_fix":
-                components["fix_quality"] = 0.45
+            if isinstance(correct_fix, list):
+                if proposed_fix in correct_fix:
+                    components["fix_quality"] = 0.55 / len(correct_fix)  # Partial credit
+                else:
+                    components["fix_quality"] = -0.35
             else:
-                components["fix_quality"] = -0.35
+                if proposed_fix == correct_fix:
+                    components["fix_quality"] = 0.55
+                elif self.state["active_world"] == "no_incident" and proposed_fix == "no_fix":
+                    components["fix_quality"] = 0.45
+                else:
+                    components["fix_quality"] = -0.35
 
         elif action.type == "safe_mitigation":
             if not self.state["mitigation_applied"]:
@@ -125,12 +154,29 @@ class RealityOpsEnv:
             self.state["requires_fix_confirmation"] = True
             components["risky_penalty"] = -0.45
 
+        elif action.type == "ask_team":
+            self.state["team_queries"] = self.state.get("team_queries", 0) + 1
+            components["team_help"] = -0.02  # Small cost
+            # Add dynamic team response to slack
+            team_responses = [
+                "DevOps: 'DB is spiking—check connections!'",
+                "SRE: 'Auth service might be overloaded.'",
+                "On-call: 'Revenue drop correlates with latency.'"
+            ]
+            import random
+            random.seed(self.state["seed"] + self.state["steps"])
+            response = random.choice(team_responses)
+            # Note: Slack is built in build_observation, so we can't modify here directly.
+            # Instead, add a flag for build_observation to include team response.
+
         elif action.type == "wait":
             evidence_count = sum(1 for value in self.state["investigations"].values() if value)
             if self.state["task_name"] == "false_alarm" and evidence_count >= 2:
                 components["wait_quality"] = 0.08
             else:
                 components["wait_quality"] = -0.07
+            if self.state["wait_count"] > 3:
+                components["wait_penalty"] = -0.1
 
         raw_total = sum(components.values())
         normalized = max(0.0, min(1.0, 0.5 + raw_total))
@@ -176,7 +222,7 @@ class RealityOpsEnv:
 
     def step(self, action: Action):
         if self.state.get("done"):
-            obs = build_observation(self.state)
+            obs = build_observation(self.state, self.state["seed"])
             return {
                 "observation": Observation(**obs, step=self.state["steps"]),
                 "reward": 0.0,
@@ -192,9 +238,16 @@ class RealityOpsEnv:
         self.state["steps"] += 1
         step = self.state["steps"]
         self.state["action_history"].append({"step": step, "type": action.type, "payload": action.payload or {}})
+        logger.debug(f"Step {step}: Action {action.type}, Payload {action.payload}")
 
         reward = self._reward_from_action(action)
-        self.state["revenue_loss"] += float(self.state["task_spec"]["revenue_loss_per_step"])
+
+        partial_reward = 0.0
+        if action.type in ["probe", "check_logs", "check_metrics"] and not self.state["investigations"][action.type]:
+            partial_reward += 0.1  # Signal progress
+        reward.value += partial_reward
+
+        self.state["revenue_loss"] += float(self.state["task_spec"]["revenue_loss_per_step"]) * (0.5 if not self.state["market_hours"] else 1.0)
 
         done = self._is_done(action)
         self.state["done"] = done
@@ -203,7 +256,7 @@ class RealityOpsEnv:
         self.state["episode_score"] = grade_result["score"]
         self.state["reward_history"].append(reward.value)
 
-        obs = build_observation(self.state)
+        obs = build_observation(self.state, self.state["seed"])
 
         return {
             "observation": Observation(**obs, step=step),

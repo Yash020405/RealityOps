@@ -19,6 +19,9 @@ TASKS = [
     "ambiguous_root",
     "revenue_tradeoff",
     "cascading_failure",
+    "multi_incident",
+    "security_breach",
+    "resource_exhaustion",
 ]
 MAX_STEPS = 10
 SUCCESS_SCORE_THRESHOLD = 0.45
@@ -96,6 +99,10 @@ def _heuristic_action(task: str, observation: Dict, step: int, history: List[Dic
             return "refresh_token"
         if "packet loss" in logs_blob or latency > 360:
             return "reroute_traffic"
+        if "unusual login" in logs_blob or "data export volume spike" in logs_blob:
+            return "block_ip"
+        if "OOM killer" in logs_blob or "memory pressure" in logs_blob:
+            return "scale_up"
         return "increase_pool"
 
     if task == "false_alarm":
@@ -178,6 +185,48 @@ def _heuristic_action(task: str, observation: Dict, step: int, history: List[Dic
             return {"type": "commit_fix", "payload": {"fix": _best_fix()}}
         return {"type": "wait"}
 
+    if task == "security_breach":
+        if not _has_action("check_logs"):
+            return {"type": "check_logs"}
+        if not _has_action("check_metrics"):
+            return {"type": "check_metrics"}
+        if not _has_action("probe"):
+            return {"type": "probe"}
+        if not _has_action("update_belief"):
+            return {
+                "type": "update_belief",
+                "payload": {
+                    "security_breach": 0.50,
+                    "no_incident": 0.30,
+                    "auth_expiry": 0.20,
+                },
+            }
+        if not _has_action("safe_mitigation"):
+            return {"type": "safe_mitigation"}
+        if not _has_action("commit_fix") or needs_confirmation:
+            return {"type": "commit_fix", "payload": {"fix": _best_fix()}}
+        return {"type": "wait"}
+
+    if task == "resource_exhaustion":
+        if not _has_action("check_metrics"):
+            return {"type": "check_metrics"}
+        if not _has_action("check_logs"):
+            return {"type": "check_logs"}
+        if not _has_action("probe"):
+            return {"type": "probe"}
+        if not _has_action("update_belief"):
+            return {
+                "type": "update_belief",
+                "payload": {
+                    "resource_exhaustion": 0.60,
+                    "db_overload": 0.25,
+                    "cache_bug": 0.15,
+                },
+            }
+        if not _has_action("commit_fix") or needs_confirmation:
+            return {"type": "commit_fix", "payload": {"fix": _best_fix()}}
+        return {"type": "wait"}
+
     belief_payload = {
         "db_overload": 0.35,
         "cache_bug": 0.20,
@@ -218,6 +267,8 @@ def _model_action(
             "flush_cache",
             "refresh_token",
             "reroute_traffic",
+            "block_ip",
+            "scale_up",
             "no_fix",
         ],
         "instruction": "Return ONLY valid JSON with keys: type (string) and optional payload (object).",
@@ -349,7 +400,8 @@ def _run_episode(client: Optional[OpenAI], task: str) -> None:
 def main() -> None:
     _ = LOCAL_IMAGE_NAME
     client = OpenAI(base_url=LLM_API_BASE_URL, api_key=API_KEY) if API_KEY else None
-    for task in TASKS:
+    selected_tasks = [os.getenv("TASK_NAME")] if os.getenv("TASK_NAME") else TASKS
+    for task in selected_tasks:
         _run_episode(client, task)
 
 
