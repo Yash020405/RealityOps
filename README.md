@@ -19,7 +19,16 @@ tags:
 - Streamlit UI (local): http://localhost:8501
 
 
-## Why this is a real-world task
+## Local Development
+
+To run the project locally:
+
+1. Install dependencies: `pip install -r requirements.txt`
+2. Start the API server: `uvicorn server.app:app --host 0.0.0.0 --port 7860`
+3. Start the Streamlit UI: `streamlit run server/ui.py`
+4. Access the UI at `http://localhost:8501`
+
+The UI connects to the server at `http://localhost:7860` by default.
 
 The environment models work that real SRE and platform engineers do:
 - triaging active incidents
