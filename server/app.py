@@ -50,7 +50,7 @@ def state():
 def visualize():
     return {
         "trajectory": env.state["action_history"],
-        "beliefs_over_time": getattr(env.state, "belief_history", []),
+        "beliefs_over_time": env.state.get("belief_history", []),
         "current_beliefs": env.state["beliefs"],
         "task": env.state["task_name"],
         "steps": env.state["steps"],

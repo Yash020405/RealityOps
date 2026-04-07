@@ -93,7 +93,11 @@ class RealityOpsEnv:
             self.state["belief_update_count"] += 1
             components["belief_update"] = 0.05
             components["belief_signal"] = 0.05  # Additional signal
-            components["belief_alignment"] = 0.20 * normalized.get(self.state["active_world"], 0.0)
+            if isinstance(self.state["active_world"], list):
+                alignment = sum(normalized.get(w, 0.0) for w in self.state["active_world"]) / len(self.state["active_world"])
+            else:
+                alignment = normalized.get(self.state["active_world"], 0.0)
+            components["belief_alignment"] = 0.20 * alignment
             self.state["belief_history"].append(normalized.copy())
 
         elif action.type == "commit_fix":
@@ -117,7 +121,7 @@ class RealityOpsEnv:
             else:
                 self.state["requires_fix_confirmation"] = False
 
-            valid_fixes = {"increase_pool", "flush_cache", "refresh_token", "reroute_traffic", "no_fix"}
+            valid_fixes = {"increase_pool", "flush_cache", "refresh_token", "reroute_traffic", "block_ip", "scale_up", "no_fix"}
             if proposed_fix and proposed_fix not in valid_fixes:
                 self.state["invalid_fix_count"] += 1
                 components["invalid_fix_penalty"] = -0.25

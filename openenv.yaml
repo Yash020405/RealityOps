@@ -13,3 +13,5 @@ tasks:
   - revenue_tradeoff
   - cascading_failure
   - multi_incident
+  - security_breach
+  - resource_exhaustion
