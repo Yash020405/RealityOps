@@ -44,8 +44,15 @@ def _anti_gaming(state: Dict) -> float:
 
 def _creativity_bonus(state: Dict) -> float:
     # Bonus for risky fixes that work or unique action combos
-    if state.get("risky_used") and state.get("applied_fix") == WORLDS[state["active_world"]]["fix"]:
-        return 0.1
+    if state.get("risky_used"):
+        # Handle both single-world and multi-incident cases
+        if isinstance(state["active_world"], list):
+            # For multi-incident, check if fix matches any active world
+            if any(state.get("applied_fix") == WORLDS[world]["fix"] for world in state["active_world"]):
+                return 0.1
+        else:
+            if state.get("applied_fix") == WORLDS[state["active_world"]]["fix"]:
+                return 0.1
     # Bonus for efficient multi-incident handling
     if isinstance(state["active_world"], list) and state["belief_update_count"] >= 3:
         return 0.05

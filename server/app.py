@@ -1,6 +1,5 @@
 from typing import Optional
-
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 import uvicorn
 from env.core import RealityOpsEnv
 from env.models import Action, Observation, ResetRequest, ResetResponse, StepResponse
@@ -24,22 +23,18 @@ def step(action: Action):
             done=result["done"],
             info=result["info"],
         )
+    except TypeError as e:
+        # Specific handling for type errors (e.g., unhashable type)
+        raise HTTPException(status_code=422, detail=f"Invalid action or state: {str(e)}")
+    except ValueError as e:
+        # Specific handling for value errors
+        raise HTTPException(status_code=400, detail=f"Invalid action value: {str(e)}")
+    except KeyError as e:
+        # Specific handling for missing keys
+        raise HTTPException(status_code=500, detail=f"Internal state error: {str(e)}")
     except Exception as e:
-        return StepResponse(
-            observation=Observation(
-                alerts=["Error occurred"],
-                logs=["Internal error"],
-                metrics={"cpu": 0.0, "latency": 0.0, "error_rate": 0.0},
-                slack=["System error"],
-                revenue_loss=0.0,
-                step=env.state["steps"],
-                confidence_levels={},
-                hints=["Check action format"],
-            ),
-            reward=0.0,
-            done=True,
-            info={"error": str(e)},
-        )
+        # Re-raise unexpected exceptions to propagate as 500 errors
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/state")
 def state():
