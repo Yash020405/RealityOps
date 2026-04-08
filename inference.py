@@ -1,17 +1,40 @@
+"""
+Inference Script Example (RealityOps)
+====================================
+MANDATORY VARIABLES (set via environment configuration):
+- API_BASE_URL
+- MODEL_NAME
+- HF_TOKEN
+- LOCAL_IMAGE_NAME
+
+Defaults are intentionally provided for API_BASE_URL and MODEL_NAME to reflect
+the active local inference setup.
+
+STDOUT CONTRACT
+- [START] task=<task_name> env=<benchmark> model=<model_name>
+- [STEP]  step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
+- [END]   success=<true|false> steps=<n> score=<score> rewards=<r1,r2,...,rn>
+"""
+
 import json
 import os
+import time
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 import requests
 from openai import OpenAI
 
-LLM_API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
 ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:7860")
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
 HF_TOKEN = os.getenv("HF_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-API_KEY = HF_TOKEN or OPENAI_API_KEY or os.getenv("API_KEY")
+API_KEY = HF_TOKEN or os.getenv("API_KEY") or OPENAI_API_KEY
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+BASELINE_RESULTS_PATH = os.getenv("BASELINE_RESULTS_PATH", "baseline_results.json")
+REQUIRE_LLM = os.getenv("REQUIRE_LLM", "0").strip().lower() in {"1", "true", "yes", "on"}
+RESET_SEED = os.getenv("RESET_SEED")
 
 BENCHMARK = "realityops_arena"
 TASKS = [
@@ -101,7 +124,7 @@ def _heuristic_action(task: str, observation: Dict, step: int, history: List[Dic
             return "reroute_traffic"
         if "unusual login" in logs_blob or "data export volume spike" in logs_blob:
             return "block_ip"
-        if "OOM killer" in logs_blob or "memory pressure" in logs_blob:
+        if "oom killer" in logs_blob or "memory pressure" in logs_blob:
             return "scale_up"
         return "increase_pool"
 
@@ -269,7 +292,7 @@ def _heuristic_action(task: str, observation: Dict, step: int, history: List[Dic
                 },
             }
         if not _has_action("commit_fix") or needs_confirmation:
-            return {"type": "commit_fix", "payload": {"fix": _best_fix()}}
+            return {"type": "commit_fix", "payload": {"fix": "scale_up"}}
         return {"type": "wait"}
 
     belief_payload = {
@@ -368,7 +391,8 @@ def _sanitize_action(candidate: Dict) -> Dict:
     return result
 
 
-def _run_episode(client: Optional[OpenAI], task: str) -> None:
+def _run_episode(client: Optional[OpenAI], task: str) -> Dict[str, object]:
+    started = time.perf_counter()
     rewards: List[float] = []
     history: List[Dict] = []
     steps = 0
@@ -379,7 +403,14 @@ def _run_episode(client: Optional[OpenAI], task: str) -> None:
     log_start(task=task, env=BENCHMARK, model=MODEL_NAME)
 
     try:
-        reset_res = requests.post(f"{ENV_BASE_URL}/reset", json={"task": task}, timeout=30)
+        reset_payload: Dict[str, object] = {"task": task}
+        if RESET_SEED is not None:
+            try:
+                reset_payload["seed"] = int(RESET_SEED)
+            except ValueError as exc:
+                raise ValueError("RESET_SEED must be an integer when provided.") from exc
+
+        reset_res = requests.post(f"{ENV_BASE_URL}/reset", json=reset_payload, timeout=30)
         reset_res.raise_for_status()
         reset_body = reset_res.json()
         observation = reset_body["observation"]
@@ -426,6 +457,7 @@ def _run_episode(client: Optional[OpenAI], task: str) -> None:
             state_res.raise_for_status()
             state_body = state_res.json()
             score = float(state_body.get("score", {}).get("score", 0.0))
+            score = min(max(score, 0.0), 1.0)
         except Exception:
             score = min(max(sum(rewards) / max(1, len(rewards)), 0.0), 1.0)
 
@@ -441,13 +473,65 @@ def _run_episode(client: Optional[OpenAI], task: str) -> None:
     finally:
         log_end(success=success, steps=steps, score=score, rewards=rewards)
 
+    return {
+        "task": task,
+        "success": success,
+        "steps": steps,
+        "score": round(score, 6),
+        "duration_seconds": round(time.perf_counter() - started, 6),
+        "rewards": [round(value, 6) for value in rewards],
+    }
+
+
+def _validate_env_config() -> None:
+    if not (ENV_BASE_URL.startswith("http://") or ENV_BASE_URL.startswith("https://")):
+        raise ValueError(
+            "Invalid ENV_BASE_URL. Expected an absolute URL starting with http:// or https://"
+        )
+
+
+def _write_baseline_results(episodes: List[Dict], policy_mode: str) -> None:
+    if not episodes:
+        return
+
+    scores = {episode["task"]: float(episode["score"]) for episode in episodes}
+    mean_score = round(sum(scores.values()) / len(scores), 6)
+
+    payload = {
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "benchmark": BENCHMARK,
+        "env_base_url": ENV_BASE_URL,
+        "model_name": MODEL_NAME,
+        "policy_mode": policy_mode,
+        "reset_seed": int(RESET_SEED) if RESET_SEED is not None else None,
+        "tasks": [episode["task"] for episode in episodes],
+        "scores": scores,
+        "mean_score": mean_score,
+        "episodes": episodes,
+    }
+
+    with open(BASELINE_RESULTS_PATH, "w", encoding="utf-8") as outfile:
+        json.dump(payload, outfile, indent=2)
+        outfile.write("\n")
+
 
 def main() -> None:
     _ = LOCAL_IMAGE_NAME
-    client = OpenAI(base_url=LLM_API_BASE_URL, api_key=API_KEY) if API_KEY else None
+    _validate_env_config()
+
+    if REQUIRE_LLM and not API_KEY:
+        raise RuntimeError(
+            "REQUIRE_LLM is enabled but no API key is configured. Set HF_TOKEN, OPENAI_API_KEY, or API_KEY."
+        )
+
+    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY) if API_KEY else None
+    policy_mode = "llm" if client is not None else "heuristic"
     selected_tasks = [os.getenv("TASK_NAME")] if os.getenv("TASK_NAME") else TASKS
+    episodes: List[Dict] = []
     for task in selected_tasks:
-        _run_episode(client, task)
+        episodes.append(_run_episode(client, task))
+
+    _write_baseline_results(episodes, policy_mode)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,132 @@
+{
+  "generated_at_utc": "2026-04-08T17:30:03.174037+00:00",
+  "benchmark": "realityops_arena",
+  "env_base_url": "http://localhost:7860",
+  "model_name": "Qwen/Qwen2.5-72B-Instruct",
+  "policy_mode": "heuristic",
+  "reset_seed": 9001,
+  "tasks": [
+    "false_alarm",
+    "ambiguous_root",
+    "revenue_tradeoff",
+    "cascading_failure",
+    "multi_incident",
+    "security_breach",
+    "resource_exhaustion"
+  ],
+  "scores": {
+    "false_alarm": 0.923333,
+    "ambiguous_root": 0.857791,
+    "revenue_tradeoff": 0.75516,
+    "cascading_failure": 0.8861,
+    "multi_incident": 0.588333,
+    "security_breach": 0.8875,
+    "resource_exhaustion": 0.856071
+  },
+  "mean_score": 0.822041,
+  "episodes": [
+    {
+      "task": "false_alarm",
+      "success": true,
+      "steps": 4,
+      "score": 0.923333,
+      "duration_seconds": 0.093394,
+      "rewards": [
+        0.502,
+        0.502,
+        0.502,
+        0.502
+      ]
+    },
+    {
+      "task": "ambiguous_root",
+      "success": true,
+      "steps": 5,
+      "score": 0.857791,
+      "duration_seconds": 0.041382,
+      "rewards": [
+        0.47,
+        0.47,
+        0.47,
+        0.61093,
+        0.94
+      ]
+    },
+    {
+      "task": "revenue_tradeoff",
+      "success": true,
+      "steps": 6,
+      "score": 0.75516,
+      "duration_seconds": 0.044195,
+      "rewards": [
+        0.43,
+        0.43,
+        0.43,
+        0.569149,
+        0.47,
+        0.9
+      ]
+    },
+    {
+      "task": "cascading_failure",
+      "success": true,
+      "steps": 6,
+      "score": 0.8861,
+      "duration_seconds": 0.046797,
+      "rewards": [
+        0.4,
+        0.4,
+        0.4,
+        0.532088,
+        0.541569,
+        0.87
+      ]
+    },
+    {
+      "task": "multi_incident",
+      "success": true,
+      "steps": 8,
+      "score": 0.588333,
+      "duration_seconds": 0.049852,
+      "rewards": [
+        0.37,
+        0.37,
+        0.37,
+        0.478,
+        0.478,
+        0.48,
+        0.41,
+        0.565
+      ]
+    },
+    {
+      "task": "security_breach",
+      "success": true,
+      "steps": 6,
+      "score": 0.8875,
+      "duration_seconds": 0.048777,
+      "rewards": [
+        0.42,
+        0.42,
+        0.42,
+        0.54,
+        0.46,
+        0.89
+      ]
+    },
+    {
+      "task": "resource_exhaustion",
+      "success": true,
+      "steps": 5,
+      "score": 0.856071,
+      "duration_seconds": 0.047399,
+      "rewards": [
+        0.46,
+        0.46,
+        0.46,
+        0.6,
+        0.93
+      ]
+    }
+  ]
+}

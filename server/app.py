@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 import uvicorn
 from env.core import RealityOpsEnv
 from env.models import Action, ResetRequest, ResetResponse, StepResponse
+from env.tasks import task_names
 
 app = FastAPI()
 env = RealityOpsEnv()
@@ -323,6 +324,7 @@ def api_info():
             "/web",
             "/reset",
             "/step",
+            "/tasks",
             "/state",
             "/health",
             "/visualize",
@@ -337,6 +339,11 @@ def api_info():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/tasks")
+def tasks():
+    return task_names()
 
 @app.post("/reset", response_model=ResetResponse)
 def reset(payload: Optional[ResetRequest] = None):

@@ -43,6 +43,7 @@ The environment models work that real SRE and platform engineers do:
 The server implements the standard endpoints:
 - POST /reset -> returns initial observation and done=false
 - POST /step -> returns observation, reward, done, info
+- GET /tasks -> returns task catalog
 - GET /state -> returns full internal state plus deterministic grader score
 - GET /visualize -> returns episode trajectory and belief history
 
@@ -231,11 +232,15 @@ Define these before running inference:
 - MODEL_NAME: model identifier
 - HF_TOKEN: Hugging Face / API key
 - LOCAL_IMAGE_NAME: optional local image name (kept for compatibility)
+- REQUIRE_LLM: set to 1 to fail fast when no API key is available
+- RESET_SEED: optional deterministic episode seed passed to /reset
+- BASELINE_RESULTS_PATH: output path for structured baseline JSON (default: baseline_results.json)
 
 Also set this for local env execution:
 - ENV_BASE_URL: environment API base URL (default: http://localhost:7860)
 
 The inference script uses the OpenAI Python client for all model calls (`from openai import OpenAI`) and reads the required variables above.
+It follows the sample submission convention by defaulting only API_BASE_URL and MODEL_NAME, while keeping additional RealityOps runtime variables optional for local execution.
 
 ## Setup
 
@@ -275,14 +280,135 @@ Formatting rules implemented:
 python inference.py
 ```
 
-Baseline scores from a local run (2026-04-06, improved hard-task gates):
-- false_alarm: 0.923
-- ambiguous_root: 0.858
-- revenue_tradeoff: 0.805
-- cascading_failure: 0.910
-- mean: 0.874
+Baseline scores from a deterministic local run (2026-04-08, RESET_SEED=9001):
+- false_alarm: 0.923333
+- ambiguous_root: 0.857791
+- revenue_tradeoff: 0.755160
+- cascading_failure: 0.886100
+- multi_incident: 0.588333
+- security_breach: 0.887500
+- resource_exhaustion: 0.856071
+- mean: 0.822041
 
-Note: if HF_TOKEN is not set or the model endpoint is unavailable, the script falls back to a deterministic heuristic policy while preserving the exact START/STEP/END output contract.
+Baseline artifacts committed in repo:
+- baseline_output.txt (raw START/STEP/END transcript)
+- baseline_results.json (timestamped structured report with per-task durations)
+
+### Baseline Report (Consolidated)
+
+#### Run Metadata
+
+- Execution timestamp (UTC): 2026-04-08T17:30:03.174037+00:00
+- Benchmark: realityops_arena
+- Env URL: http://localhost:7860
+- Policy mode: heuristic
+- Model configured: Qwen/Qwen2.5-72B-Instruct
+- Reset seed: 9001
+- Source artifacts:
+	- baseline_results.json
+	- baseline_output.txt
+
+#### Summary
+
+- Episodes executed: 7/7 tasks
+- Inference failures: 0/7
+- Overall mean score: 0.822041
+- Baseline type: HEURISTIC BASELINE (not LLM-backed in this run)
+
+#### Difficulty Averages
+
+- easy average: 0.923333
+- medium average: 0.856931
+- hard average: 0.842920
+- ultra-hard average: 0.588333
+
+#### Per-Task Results
+
+| Task | Difficulty | Score | Steps | Duration (s) | Success |
+|---|---|---:|---:|---:|---|
+| false_alarm | easy | 0.923333 | 4 | 0.093394 | true |
+| ambiguous_root | medium | 0.857791 | 5 | 0.041382 | true |
+| revenue_tradeoff | hard | 0.755160 | 6 | 0.044195 | true |
+| cascading_failure | hard | 0.886100 | 6 | 0.046797 | true |
+| multi_incident | ultra-hard | 0.588333 | 8 | 0.049852 | true |
+| security_breach | hard | 0.887500 | 6 | 0.048777 | true |
+| resource_exhaustion | medium | 0.856071 | 5 | 0.047399 | true |
+
+All per-task runtimes are well below the submission target of < 2 minutes.
+
+#### Scenario Breakdown
+
+- R001 false_alarm: 0.923333
+- R002 ambiguous_root: 0.857791
+- R003 revenue_tradeoff: 0.755160
+- R004 cascading_failure: 0.886100
+- R005 multi_incident: 0.588333
+- R006 security_breach: 0.887500
+- R007 resource_exhaustion: 0.856071
+
+#### Multi-Model Validation Status
+
+- Prepared script: benchmark.py
+- Recommended command:
+	python benchmark.py --require-llm --models Qwen/Qwen2.5-72B-Instruct meta-llama/Llama-3.1-70B-Instruct mistralai/Mistral-7B-Instruct-v0.3
+- Current blocker in this local run: no active LLM credentials were provided, so only heuristic baseline was executed.
+
+### Grader Walkthrough (Consolidated)
+
+#### Task: cascading_failure
+
+This walkthrough demonstrates how grading accumulates for a realistic hard-task trajectory where the agent gathers evidence, updates beliefs twice, and then applies the correct fix.
+
+#### Scenario
+
+- Active world: auth_expiry
+- Required gates:
+	- required_evidence >= 3
+	- required_belief_updates >= 2
+- Correct fix: refresh_token
+
+#### Example Episode
+
+- Step 1: check_logs
+	- Evidence coverage increases.
+	- Reward signal favors investigation.
+	- No completion yet.
+- Step 2: probe
+	- Probe evidence and hint quality improve.
+	- Revenue continues to accumulate each step.
+- Step 3: check_metrics
+	- Third evidence source reached.
+	- Evidence gate is now satisfiable.
+- Step 4: update_belief
+	- First belief update recorded.
+	- Belief alignment contributes to reward and grader components.
+	- Belief gate still not satisfied.
+- Step 5: update_belief
+	- Second belief update recorded.
+	- Belief gate becomes satisfied.
+- Step 6: commit_fix(refresh_token)
+	- Correct fix chosen.
+	- With both confidence gates satisfied, episode can terminate.
+	- Final score includes weighted components:
+		- correct_fix: 0.37
+		- coordination (belief updates): 0.25
+		- evidence: 0.20
+		- revenue_control: 0.13
+		- anti_gaming: 0.05
+
+#### Gate Violations and Penalties
+
+- Evidence/belief gate violation on commit_fix:
+	- Environment keeps episode open (done=false).
+	- Runtime reward applies premature_fix_penalty = -0.20.
+	- requires_fix_confirmation is set until gates are satisfied.
+- Mitigation-before-fix gate violation (revenue_tradeoff, security_breach):
+	- Episode does not complete on fix alone.
+	- Grader component mitigation_before_fix remains 0.0, reducing final score by its full weight for that task.
+- Repetition and stalling:
+	- Runtime penalties and grader anti-gaming both reduce final score.
+
+Note: if HF_TOKEN is not set or the model endpoint is unavailable, the script falls back to a deterministic heuristic policy while preserving the exact START/STEP/END output contract. For strict model-only runs, set REQUIRE_LLM=1.
 
 ## Docker
 
@@ -299,9 +425,11 @@ openenv validate
 
 Optional pre-submission shell validator (from assignment):
 - run the provided validate-submission.sh against your HF Space URL.
+- script checks exactly: (1) POST /reset reachability, (2) docker build success, (3) openenv validate success.
 
 ```bash
-PATH="/home/user/Desktop/RealityOps/.venv/bin:$PATH" ./scripts/validate-submission.sh https://thetallinnov8r-realityops.hf.space .
+PATH="/home/user/Desktop/RealityOps/.venv/bin:$PATH" ./validate-submission.sh https://thetallinnov8r-realityops.hf.space .
+
 ```
 
 ## Pre-Submission Checklist

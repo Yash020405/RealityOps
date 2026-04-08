@@ -11,6 +11,8 @@ def _clamp01(value: float) -> float:
 def _belief_alignment(state: Dict) -> float:
     active_worlds = state["active_world"]
     if isinstance(active_worlds, list):
+        if not active_worlds:
+            return 0.0
         # For multi-incident, average alignment across all active worlds
         alignments = [state["beliefs"].get(world, 0.0) for world in active_worlds]
         return _clamp01(sum(alignments) / len(alignments))
@@ -20,18 +22,29 @@ def _belief_alignment(state: Dict) -> float:
 
 def _evidence_coverage(state: Dict) -> float:
     checks = state["investigations"]
+    if not checks:
+        return 0.0
     covered = sum(1 for value in checks.values() if value)
     return covered / float(len(checks))
 
 
 def _revenue_control(state: Dict) -> float:
-    base_loss = state["revenue_loss"] / float(state["task_spec"]["revenue_loss_per_step"] * state["task_spec"]["max_steps"])
-    time_multiplier = 1.0 + (state["steps"] / state["task_spec"]["max_steps"]) * 0.5  # Exponentially worse after halfway
+    max_steps = float(state["task_spec"]["max_steps"])
+    if max_steps <= 0:
+        return 0.0
+    denominator = float(state["task_spec"]["revenue_loss_per_step"] * state["task_spec"]["max_steps"])
+    if denominator <= 0:
+        return 0.0
+    base_loss = state["revenue_loss"] / denominator
+    time_multiplier = 1.0 + (state["steps"] / max_steps) * 0.5  # Exponentially worse after halfway
     return _clamp01(1.0 - (base_loss * time_multiplier))
 
 
 def _efficiency(state: Dict) -> float:
-    return _clamp01(1.0 - (state["steps"] / float(state["task_spec"]["max_steps"])))
+    max_steps = float(state["task_spec"]["max_steps"])
+    if max_steps <= 0:
+        return 0.0
+    return _clamp01(1.0 - (state["steps"] / max_steps))
 
 
 def _anti_gaming(state: Dict) -> float:
@@ -159,10 +172,13 @@ def _score_multi_incident(state: Dict, worlds: Dict) -> Tuple[float, Dict[str, f
     # Simplified grader for multi-incident
     correct_fixes = 0
     if isinstance(state["active_world"], list):
-        for world in state["active_world"]:
-            if state["applied_fix"] == worlds[world]["fix"]:
-                correct_fixes += 1
-        correct_fix = correct_fixes / len(state["active_world"])
+        if not state["active_world"]:
+            correct_fix = 0.0
+        else:
+            for world in state["active_world"]:
+                if state["applied_fix"] == worlds[world]["fix"]:
+                    correct_fixes += 1
+            correct_fix = correct_fixes / len(state["active_world"])
     else:
         correct_fix = 1.0 if state["applied_fix"] == worlds[state["active_world"]]["fix"] else 0.0
     evidence = _evidence_coverage(state)
@@ -201,11 +217,12 @@ def _score_security_breach(state: Dict, worlds: Dict) -> Tuple[float, Dict[str, 
     anti_gaming = _anti_gaming(state)
 
     score = (
-        0.45 * correct_fix
-        + 0.25 * mitigation_before_fix
+        0.42 * correct_fix
+        + 0.23 * mitigation_before_fix
         + 0.15 * evidence
         + 0.10 * belief
         + 0.05 * revenue_control
+        + 0.05 * anti_gaming
     )
     if state["risky_used"]:
         score -= 0.20  # Higher penalty for risky actions in security contexts

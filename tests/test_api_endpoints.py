@@ -26,6 +26,7 @@ def test_api_metadata_and_health() -> None:
     assert "/" in payload["endpoints"]
     assert "/web" in payload["endpoints"]
     assert "/quick/demo" in payload["endpoints"]
+    assert "/tasks" in payload["endpoints"]
 
     health = client.get("/health")
     assert health.status_code == 200
@@ -78,6 +79,15 @@ def test_docs_endpoint_is_available() -> None:
     docs = client.get("/docs")
     assert docs.status_code == 200
     assert "Swagger UI" in docs.text
+
+
+def test_tasks_endpoint_lists_all_tasks() -> None:
+    tasks = client.get("/tasks")
+    assert tasks.status_code == 200
+    payload = tasks.json()
+    assert isinstance(payload, list)
+    assert len(payload) >= 7
+    assert "multi_incident" in payload
 
 
 def test_reset_rejects_unsupported_task_literal() -> None:

@@ -1,0 +1,54 @@
+[START] task=false_alarm env=realityops_arena model=Qwen/Qwen2.5-72B-Instruct
+[STEP] step=1 action=check_metrics reward=0.50 done=false error=null
+[STEP] step=2 action=check_logs reward=0.50 done=false error=null
+[STEP] step=3 action=probe reward=0.50 done=false error=null
+[STEP] step=4 action=wait reward=0.50 done=true error=null
+[END] success=true steps=4 score=0.923 rewards=0.50,0.50,0.50,0.50
+[START] task=ambiguous_root env=realityops_arena model=Qwen/Qwen2.5-72B-Instruct
+[STEP] step=1 action=check_logs reward=0.47 done=false error=null
+[STEP] step=2 action=check_metrics reward=0.47 done=false error=null
+[STEP] step=3 action=probe reward=0.47 done=false error=null
+[STEP] step=4 action=update_belief(auth_expiry=0.16,cache_bug=0.18,db_overload=0.52,network_partition=0.1,no_incident=0.04) reward=0.61 done=false error=null
+[STEP] step=5 action=commit_fix(fix=increase_pool) reward=0.94 done=true error=null
+[END] success=true steps=5 score=0.858 rewards=0.47,0.47,0.47,0.61,0.94
+[START] task=revenue_tradeoff env=realityops_arena model=Qwen/Qwen2.5-72B-Instruct
+[STEP] step=1 action=check_logs reward=0.43 done=false error=null
+[STEP] step=2 action=check_metrics reward=0.43 done=false error=null
+[STEP] step=3 action=probe reward=0.43 done=false error=null
+[STEP] step=4 action=update_belief(auth_expiry=0.04,cache_bug=0.15,db_overload=0.23,network_partition=0.56,no_incident=0.02) reward=0.57 done=false error=null
+[STEP] step=5 action=safe_mitigation reward=0.47 done=false error=null
+[STEP] step=6 action=commit_fix(fix=reroute_traffic) reward=0.90 done=true error=null
+[END] success=true steps=6 score=0.755 rewards=0.43,0.43,0.43,0.57,0.47,0.90
+[START] task=cascading_failure env=realityops_arena model=Qwen/Qwen2.5-72B-Instruct
+[STEP] step=1 action=check_logs reward=0.40 done=false error=null
+[STEP] step=2 action=probe reward=0.40 done=false error=null
+[STEP] step=3 action=check_metrics reward=0.40 done=false error=null
+[STEP] step=4 action=update_belief(auth_expiry=0.51,cache_bug=0.06,db_overload=0.16,network_partition=0.24,no_incident=0.02) reward=0.53 done=false error=null
+[STEP] step=5 action=update_belief(auth_expiry=0.62,cache_bug=0.06,db_overload=0.16,network_partition=0.24,no_incident=0.02) reward=0.54 done=false error=null
+[STEP] step=6 action=commit_fix(fix=refresh_token) reward=0.87 done=true error=null
+[END] success=true steps=6 score=0.886 rewards=0.40,0.40,0.40,0.53,0.54,0.87
+[START] task=multi_incident env=realityops_arena model=Qwen/Qwen2.5-72B-Instruct
+[STEP] step=1 action=check_logs reward=0.37 done=false error=null
+[STEP] step=2 action=check_metrics reward=0.37 done=false error=null
+[STEP] step=3 action=probe reward=0.37 done=false error=null
+[STEP] step=4 action=update_belief(auth_expiry=0.06,cache_bug=0.06,db_overload=0.44,network_partition=0.44) reward=0.48 done=false error=null
+[STEP] step=5 action=update_belief(auth_expiry=0.06,cache_bug=0.06,db_overload=0.5,network_partition=0.38) reward=0.48 done=false error=null
+[STEP] step=6 action=update_belief(auth_expiry=0.05,cache_bug=0.05,db_overload=0.55,network_partition=0.35) reward=0.48 done=false error=null
+[STEP] step=7 action=safe_mitigation reward=0.41 done=false error=null
+[STEP] step=8 action=commit_fix(fix=reroute_traffic) reward=0.57 done=true error=null
+[END] success=true steps=8 score=0.588 rewards=0.37,0.37,0.37,0.48,0.48,0.48,0.41,0.57
+[START] task=security_breach env=realityops_arena model=Qwen/Qwen2.5-72B-Instruct
+[STEP] step=1 action=check_logs reward=0.42 done=false error=null
+[STEP] step=2 action=check_metrics reward=0.42 done=false error=null
+[STEP] step=3 action=probe reward=0.42 done=false error=null
+[STEP] step=4 action=update_belief(auth_expiry=0.2,no_incident=0.3,security_breach=0.5) reward=0.54 done=false error=null
+[STEP] step=5 action=safe_mitigation reward=0.46 done=false error=null
+[STEP] step=6 action=commit_fix(fix=block_ip) reward=0.89 done=true error=null
+[END] success=true steps=6 score=0.888 rewards=0.42,0.42,0.42,0.54,0.46,0.89
+[START] task=resource_exhaustion env=realityops_arena model=Qwen/Qwen2.5-72B-Instruct
+[STEP] step=1 action=check_metrics reward=0.46 done=false error=null
+[STEP] step=2 action=check_logs reward=0.46 done=false error=null
+[STEP] step=3 action=probe reward=0.46 done=false error=null
+[STEP] step=4 action=update_belief(cache_bug=0.15,db_overload=0.25,resource_exhaustion=0.6) reward=0.60 done=false error=null
+[STEP] step=5 action=commit_fix(fix=scale_up) reward=0.93 done=true error=null
+[END] success=true steps=5 score=0.856 rewards=0.46,0.46,0.46,0.60,0.93
